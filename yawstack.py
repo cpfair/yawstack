@@ -11,6 +11,8 @@ ArchivePath = "archive/%H-%M-%S_%d-%m-%Y.jpg"
 YawcamURL = "http://127.0.0.1:8888/out.jpg"
 # how often (secs) to capture and archive an image (time taken to stack images is accounted for)
 CaptureInterval = 60
+# capture on even wallclock times (00:00:00, 00:05:00, 00:10:00)
+WallclockIntervals = False
 ## Stacking ##
 # number of images to stack (law of diminishing return applies)
 StackDepth = 10
@@ -33,12 +35,13 @@ import datetime
 import time
 import subprocess
 
-LastCaptureTimestamp = datetime.datetime.min
+NextCaptureTimestamp = datetime.datetime.min
 
 argParser = argparse.ArgumentParser(description="Yawcam companion script to automatically retrieve, noise-reduce, and archive images. Best results if Yawcam is set to output full-quality JPEGs at maximum resolution.", epilog="IMPORTANT NOTE: ImageStack.exe must be in same directory as yawstack.py")
 argParser.add_argument("--archive", help="Image archive path pattern (default " + ArchivePath.replace("%", "%%") + ")", default=ArchivePath, metavar="PATH")
 argParser.add_argument("--image-url", help="Webcam image URL (default " + YawcamURL + " aka 'HTTP Output')", default=YawcamURL, metavar="URL")
 argParser.add_argument("--interval", help="Archive interval (seconds, default " + str(CaptureInterval) + ")", default=CaptureInterval, metavar="SECS", type=float)
+argParser.add_argument("--interval-wallclock", help="Capture on even wall-clock times", action="store_true", default=False)
 argParser.add_argument("--stack-depth", help="Number of images to stack (default " + str(StackDepth) + ")", default=StackDepth, metavar="COUNT", type=int)
 argParser.add_argument("--stack-interval", help="Interval between consecutive images in stack (secs, default " + str(StackInterval) + ")", default=StackInterval, metavar="SECS", type=float)
 argParser.add_argument("--verbose", help="Dump lots of logging to stdout", action="store_true", default=False)
@@ -48,6 +51,7 @@ Verbose = args.verbose
 ArchivePath = args.archive
 YawcamURL = args.image_url
 CaptureInterval = args.interval
+WallclockIntervals = args.interval_wallclock
 StackInterval = args.stack_interval
 StackDepth = args.stack_depth
 
@@ -96,12 +100,21 @@ def capture():
 
     print "Capture + stack completed at ", str(datetime.datetime.now())
 
+if WallclockIntervals:
+    print "WIP"
+else:
+    NextCaptureTimestamp = datetime.datetime.min
+
 while True:
-    if WarnMissedIntersitialInterval and ((datetime.datetime.now()) - LastCaptureTimestamp).total_seconds() < CaptureInterval:
-            print("WARNING: CaptureInterval too small - not actually a problem unless you care that images are being arcnived at exact intervals")
-    # wait for ts to elapse
-    while (datetime.datetime.now() - LastCaptureTimestamp).total_seconds() < CaptureInterval:
+    if WarnMissedIntersitialInterval and datetime.datetime.now() < NextCaptureTimestamp and NextCaptureTimestamp != datetime.datetime.min:
+        print("WARNING: CaptureInterval too small - not actually a problem unless you care that images are being arcnived at exact intervals")
+    if NextCaptureTimestamp != datetime.datetime.min:
+        print "Next capture will occur in ", round((NextCaptureTimestamp - datetime.datetime.now()).total_seconds()), " secs"
+    # wait for next capture ts to arrive
+    while datetime.datetime.now() < NextCaptureTimestamp:
         time.sleep(0.1)
-    LastCaptureTimestamp = datetime.datetime.now()
+    if WallclockIntervals:
+        print "WIP"
+    else:
+        NextCaptureTimestamp = NextCaptureTimestamp + datetime.timedelta(0, CaptureInterval)
     capture()
-    print "Next capture will occur in ", round(CaptureInterval - (datetime.datetime.now() - LastCaptureTimestamp).total_seconds()), " secs"
